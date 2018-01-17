@@ -83,11 +83,16 @@ class ViewController: NSViewController {
         return perspectiveCorrection?.outputImage
     }
     
-    func extractTextImages(_ image: NSImage?) {
+    func extractTextImages(_ image: NSImage?, dirURL: URL) {
         guard let image = image, let ciImage = NSImageToCIImage(image), let features = getTextFeatures(image) else { return }
+        var index = 0
         for feature in features {
-            let image = getRectImageFrom(ciImage, foundRect: feature as! CITextFeature)
+            guard let image = getRectImageFrom(ciImage, foundRect: feature as! CITextFeature) else { continue }
+            guard let nsImage = CIImageToNSImage(image) else { continue }
             print(image)
+            let newURL = dirURL.appendingPathComponent("out/\(index).png")
+            nsImage.writeToFile(pathURL: newURL, atomically: true, usingType: .png)
+            index = index + 1
         }
     }
     
@@ -99,7 +104,7 @@ class ViewController: NSViewController {
             
             for fileURL in fileURLs {
                 let image = NSImage(contentsOf: fileURL)
-                extractTextImages(image)
+                extractTextImages(image, dirURL: url)
             }
             
             // process files
@@ -126,6 +131,26 @@ class ViewController: NSViewController {
     @IBAction func buttonExtractPressed(_ sender: Any) {
         let url = selectDirectory()
         extractTextImagesFromURL(url)
+    }
+}
+
+extension NSImage {
+    func writeToFile(pathURL: URL, atomically: Bool, usingType type: NSBitmapImageRep.FileType) -> Bool {
+        let properties = [NSBitmapImageRep.PropertyKey.compressionFactor: 1.0]
+        guard
+            let imageData = self.tiffRepresentation,
+            let imageRep = NSBitmapImageRep(data: imageData),
+            let fileData = imageRep.representation(using: type, properties: properties) else {
+                return false
+        }
+        
+        do {
+            try fileData.write(to: pathURL, options: .atomic)
+            return true
+        } catch {
+            print(error)
+            return false
+        }
     }
 }
 
